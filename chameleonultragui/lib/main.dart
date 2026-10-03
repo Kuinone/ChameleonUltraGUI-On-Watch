@@ -14,6 +14,8 @@ import 'package:provider/provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'connector/serial_native.dart';
+import 'package:chameleonultragui/gui/component/watch_navigation.dart';
+import 'package:chameleonultragui/helpers/watch.dart';
 
 // Page imports
 import 'package:chameleonultragui/gui/page/home.dart';
@@ -149,11 +151,22 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   var selectedIndex = 0;
 
+  // Whether the round-watch navigation menu overlay is currently shown.
+  bool _watchMenuOpen = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance
         .addPostFrameCallback((_) => updateNavigationRailWidth(context));
+    // On a round watch, go fullscreen (hide system bars) for an immersive look.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (context.mounted && isRoundWatchScreen(context)) {
+        try {
+          SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+        } catch (_) {}
+      }
+    });
   }
 
   @override
@@ -220,6 +233,8 @@ class _MainPageState extends State<MainPage> {
 
     appState.devMode = appState.sharedPreferencesProvider.isDebugMode();
 
+    final watchMode = isRoundWatchScreen(context);
+
     Widget page; // Set Page
     if (!appState.connector!.connected &&
         selectedIndex != 0 &&
@@ -282,122 +297,265 @@ class _MainPageState extends State<MainPage> {
       locale: widget.sharedPreferencesProvider.getLocale(),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-            seedColor: widget.sharedPreferencesProvider.getThemeColor()),
-        brightness: Brightness.light,
-        appBarTheme: AppBarTheme(
-            systemOverlayStyle: SystemUiOverlayStyle(
-                statusBarColor: ColorScheme.fromSeed(
-                        seedColor:
-                            widget.sharedPreferencesProvider.getThemeColor(),
-                        brightness: Brightness.light)
-                    .surface,
-                statusBarBrightness: Brightness.light,
-                statusBarIconBrightness: Brightness.dark)),
-      ).useCustomSystemFont(Brightness.light),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-            seedColor: widget.sharedPreferencesProvider.getThemeColor(),
-            brightness: Brightness.dark),
-        brightness: Brightness.dark,
-        appBarTheme: AppBarTheme(
-            systemOverlayStyle: SystemUiOverlayStyle(
-                statusBarColor: ColorScheme.fromSeed(
-                        seedColor:
-                            widget.sharedPreferencesProvider.getThemeColor(),
-                        brightness: Brightness.dark)
-                    .surface,
-                statusBarBrightness: Brightness.dark,
-                statusBarIconBrightness: Brightness.light)),
-      ).useCustomSystemFont(Brightness.dark),
+      theme: watchMode
+          ? _applyWatchTheme(ThemeData(
+              useMaterial3: true,
+              colorScheme: ColorScheme.fromSeed(
+                  seedColor: widget.sharedPreferencesProvider.getThemeColor()),
+              brightness: Brightness.light,
+              appBarTheme: AppBarTheme(
+                  systemOverlayStyle: SystemUiOverlayStyle(
+                      statusBarColor: ColorScheme.fromSeed(
+                              seedColor:
+                                  widget.sharedPreferencesProvider.getThemeColor(),
+                              brightness: Brightness.light)
+                          .surface,
+                      statusBarBrightness: Brightness.light,
+                      statusBarIconBrightness: Brightness.dark)),
+            ).useCustomSystemFont(Brightness.light))
+          : ThemeData(
+              useMaterial3: true,
+              colorScheme: ColorScheme.fromSeed(
+                  seedColor: widget.sharedPreferencesProvider.getThemeColor()),
+              brightness: Brightness.light,
+              appBarTheme: AppBarTheme(
+                  systemOverlayStyle: SystemUiOverlayStyle(
+                      statusBarColor: ColorScheme.fromSeed(
+                              seedColor:
+                                  widget.sharedPreferencesProvider.getThemeColor(),
+                              brightness: Brightness.light)
+                          .surface,
+                      statusBarBrightness: Brightness.light,
+                      statusBarIconBrightness: Brightness.dark)),
+            ).useCustomSystemFont(Brightness.light),
+      darkTheme: watchMode
+          ? _applyWatchTheme(ThemeData(
+              useMaterial3: true,
+              colorScheme: ColorScheme.fromSeed(
+                  seedColor: widget.sharedPreferencesProvider.getThemeColor(),
+                  brightness: Brightness.dark),
+              brightness: Brightness.dark,
+              appBarTheme: AppBarTheme(
+                  systemOverlayStyle: SystemUiOverlayStyle(
+                      statusBarColor: ColorScheme.fromSeed(
+                              seedColor:
+                                  widget.sharedPreferencesProvider.getThemeColor(),
+                              brightness: Brightness.dark)
+                          .surface,
+                      statusBarBrightness: Brightness.dark,
+                      statusBarIconBrightness: Brightness.light)),
+            ).useCustomSystemFont(Brightness.dark))
+          : ThemeData(
+              useMaterial3: true,
+              colorScheme: ColorScheme.fromSeed(
+                  seedColor: widget.sharedPreferencesProvider.getThemeColor(),
+                  brightness: Brightness.dark),
+              brightness: Brightness.dark,
+              appBarTheme: AppBarTheme(
+                  systemOverlayStyle: SystemUiOverlayStyle(
+                      statusBarColor: ColorScheme.fromSeed(
+                              seedColor:
+                                  widget.sharedPreferencesProvider.getThemeColor(),
+                              brightness: Brightness.dark)
+                          .surface,
+                      statusBarBrightness: Brightness.dark,
+                      statusBarIconBrightness: Brightness.light)),
+            ).useCustomSystemFont(Brightness.dark),
       themeMode: widget.sharedPreferencesProvider.getTheme(), // Dark Theme
-      home: LayoutBuilder(// Build Page
-          builder: (context, constraints) {
-        return SafeArea(
-          left: false,
-          right: false,
-          top: false,
-          bottom: true,
-          child: Scaffold(
-              body: Row(
-                children: [
-                  (!appState.connector!.isDFU || !appState.connector!.connected)
-                      ? SafeArea(
-                          child: NavigationRail(
-                            key: appState.navigationRailKey,
-                            // Sidebar
-                            extended: appState.sharedPreferencesProvider
-                                .getSideBarExpanded(),
-                            destinations: [
-                              // Sidebar Items
-                              NavigationRailDestination(
-                                icon: const Icon(Icons.home),
-                                label: Text(
-                                    AppLocalizations.of(context)!.home), // Home
-                              ),
-                              NavigationRailDestination(
-                                disabled: !appState.connector!.connected,
-                                icon: const Icon(Icons.widgets),
-                                label: Text(
-                                    AppLocalizations.of(context)!.slot_manager),
-                              ),
-                              NavigationRailDestination(
-                                icon: const Icon(Icons.auto_awesome_motion),
-                                label: Text(
-                                    AppLocalizations.of(context)!.saved_cards),
-                              ),
-                              NavigationRailDestination(
-                                disabled: !appState.connector!.connected,
-                                icon: const Icon(Icons.sensors),
-                                label: Text(
-                                    AppLocalizations.of(context)!.read_card),
-                              ),
-                              NavigationRailDestination(
-                                disabled: !appState.connector!.connected,
-                                icon: const Icon(Icons.system_update_alt),
-                                label: Text(
-                                    AppLocalizations.of(context)!.write_card),
-                              ),
-                              NavigationRailDestination(
-                                icon: const Icon(Icons.handyman),
-                                label:
-                                    Text(AppLocalizations.of(context)!.tools),
-                              ),
-                              NavigationRailDestination(
-                                icon: const Icon(Icons.settings),
-                                label: Text(
-                                    AppLocalizations.of(context)!.settings),
-                              ),
-                              if (appState.devMode)
-                                NavigationRailDestination(
-                                  icon: const Icon(Icons.bug_report),
-                                  label: Text(
-                                      '🐞 ${AppLocalizations.of(context)!.debug} 🐞'),
-                                ),
-                            ],
-                            selectedIndex: selectedIndex,
-                            onDestinationSelected: (value) {
-                              setState(() {
-                                selectedIndex = value;
-                              });
-                            },
-                          ),
-                        )
-                      : const SizedBox(),
-                  Expanded(
-                    child: Container(
-                      color: Theme.of(context).colorScheme.primaryContainer,
-                      child: page,
+      home: Builder(
+        builder: (context) {
+          if (!isRoundWatchScreen(context)) {
+            return LayoutBuilder(
+              builder: (context, constraints) => _buildMainScaffold(
+                  context, appState, page, watchMode: false),
+            );
+          }
+
+          // Round watch: lay the existing phone UI out at the reference design
+          // size, then scale the rendered result back down and clip it to the
+          // round display so nothing spills into the bezel.
+          final real = MediaQuery.of(context).size;
+          final scale = watchScaleFactor(real);
+          final design = Size(real.width * scale, real.height * scale);
+          return ClipOval(
+            child: MediaQuery(
+              data: MediaQuery.of(context).copyWith(size: design),
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: SizedBox(
+                    width: design.width,
+                    height: design.height,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) => _buildMainScaffold(
+                          context, appState, page, watchMode: true),
                     ),
                   ),
-                ],
+                ),
               ),
-              bottomNavigationBar: const BottomProgressBar()),
-        );
-      }),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Builds the main Scaffold shell.
+  ///
+  /// On regular screens the left `NavigationRail` sidebar is shown as before.
+  /// On a round watch the sidebar is replaced by a bottom-centre circular menu
+  /// button plus a full-screen round navigation menu.
+  Widget _buildMainScaffold(
+    BuildContext context,
+    ChameleonGUIState appState,
+    Widget page, {
+    required bool watchMode,
+  }) {
+    if (!watchMode) {
+      return SafeArea(
+        left: false,
+        right: false,
+        top: false,
+        bottom: true,
+        child: Scaffold(
+            body: Row(
+              children: [
+                (!appState.connector!.isDFU || !appState.connector!.connected)
+                    ? SafeArea(
+                        child: NavigationRail(
+                          key: appState.navigationRailKey,
+                          // Sidebar
+                          extended: appState.sharedPreferencesProvider
+                              .getSideBarExpanded(),
+                          destinations: [
+                            // Sidebar Items
+                            NavigationRailDestination(
+                              icon: const Icon(Icons.home),
+                              label: Text(
+                                  AppLocalizations.of(context)!.home), // Home
+                            ),
+                            NavigationRailDestination(
+                              disabled: !appState.connector!.connected,
+                              icon: const Icon(Icons.widgets),
+                              label: Text(
+                                  AppLocalizations.of(context)!.slot_manager),
+                            ),
+                            NavigationRailDestination(
+                              icon: const Icon(Icons.auto_awesome_motion),
+                              label: Text(
+                                  AppLocalizations.of(context)!.saved_cards),
+                            ),
+                            NavigationRailDestination(
+                              disabled: !appState.connector!.connected,
+                              icon: const Icon(Icons.sensors),
+                              label: Text(
+                                  AppLocalizations.of(context)!.read_card),
+                            ),
+                            NavigationRailDestination(
+                              disabled: !appState.connector!.connected,
+                              icon: const Icon(Icons.system_update_alt),
+                              label: Text(
+                                  AppLocalizations.of(context)!.write_card),
+                            ),
+                            NavigationRailDestination(
+                              icon: const Icon(Icons.handyman),
+                              label:
+                                  Text(AppLocalizations.of(context)!.tools),
+                            ),
+                            NavigationRailDestination(
+                              icon: const Icon(Icons.settings),
+                              label: Text(
+                                  AppLocalizations.of(context)!.settings),
+                            ),
+                            if (appState.devMode)
+                              NavigationRailDestination(
+                                icon: const Icon(Icons.bug_report),
+                                label: Text(
+                                    '🐞 ${AppLocalizations.of(context)!.debug} 🐞'),
+                              ),
+                          ],
+                          selectedIndex: selectedIndex,
+                          onDestinationSelected: (value) {
+                            setState(() {
+                              selectedIndex = value;
+                            });
+                          },
+                        ),
+                      )
+                    : const SizedBox(),
+                Expanded(
+                  child: Container(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    child: page,
+                  ),
+                ),
+              ],
+            ),
+            bottomNavigationBar: const BottomProgressBar()),
+      );
+    }
+
+    // Round-watch shell: full-screen page + circular menu button + menu overlay.
+    return SafeArea(
+      left: false,
+      right: false,
+      top: false,
+      bottom: false,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Container(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                child: page,
+              ),
+            ),
+            if (_watchMenuOpen)
+              Positioned.fill(
+                child: WatchNavigationMenu(
+                  selectedIndex: selectedIndex,
+                  connected: appState.connector!.connected,
+                  devMode: appState.devMode,
+                  onDestinationSelected: (value) {
+                    setState(() {
+                      selectedIndex = value;
+                      _watchMenuOpen = false;
+                    });
+                  },
+                ),
+              ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: WatchMenuButton(
+                  menuOpen: _watchMenuOpen,
+                  onPressed: () =>
+                      setState(() => _watchMenuOpen = !_watchMenuOpen),
+                ),
+              ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: const BottomProgressBar(),
+      ),
+    );
+  }
+
+  /// Applies watch-friendly tweaks to the theme: a more compact app bar and
+  /// round dialog corners so overlays look native on the round display.
+  ThemeData _applyWatchTheme(ThemeData theme) {
+    return theme.copyWith(
+      appBarTheme: theme.appBarTheme.copyWith(
+        toolbarHeight: 44,
+        centerTitle: true,
+      ),
+      dialogTheme: theme.dialogTheme.copyWith(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(36),
+        ),
+      ),
     );
   }
 }
