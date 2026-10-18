@@ -8,6 +8,7 @@ import 'package:chameleonultragui/helpers/mifare_classic/dump_analyzer.dart';
 import 'package:chameleonultragui/helpers/mifare_ultralight/dump_highlighter.dart';
 import 'package:chameleonultragui/helpers/mifare_ultralight/dump_analyzer.dart';
 import 'package:chameleonultragui/helpers/ndef.dart';
+import 'package:chameleonultragui/helpers/watch.dart';
 import 'package:chameleonultragui/gui/menu/pages/ndef_editor.dart';
 import 'package:chameleonultragui/sharedprefsprovider.dart';
 import 'package:chameleonultragui/main.dart';
@@ -1878,7 +1879,8 @@ class DumpEditorState extends State<DumpEditor> {
         }
       },
       child: Scaffold(
-        appBar: AppBar(
+        appBar: buildWatchAwareAppBar(
+          context,
           title: Text(localizations.dump_editor),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),

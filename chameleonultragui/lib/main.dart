@@ -154,6 +154,12 @@ class _MainPageState extends State<MainPage> {
   // Whether the round-watch navigation menu overlay is currently shown.
   bool _watchMenuOpen = false;
 
+  // Watch mode drives chrome that has to live *above* the navigator (so that
+  // it also covers pushed pages and dialogs): the root navigator key and an
+  // observer that reports whether a secondary page is on screen.
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  final WatchRouteObserver _watchRouteObserver = WatchRouteObserver();
+
   @override
   void initState() {
     super.initState();
@@ -167,6 +173,12 @@ class _MainPageState extends State<MainPage> {
         } catch (_) {}
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _watchRouteObserver.canPop.dispose();
+    super.dispose();
   }
 
   @override
@@ -294,6 +306,8 @@ class _MainPageState extends State<MainPage> {
 
     return MaterialApp(
       title: 'Chameleon Ultra GUI', // App Name
+      navigatorKey: _navigatorKey,
+      navigatorObservers: [_watchRouteObserver],
       locale: widget.sharedPreferencesProvider.getLocale(),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
@@ -362,40 +376,46 @@ class _MainPageState extends State<MainPage> {
                       statusBarIconBrightness: Brightness.light)),
             ).useCustomSystemFont(Brightness.dark),
       themeMode: widget.sharedPreferencesProvider.getTheme(), // Dark Theme
-      home: Builder(
-        builder: (context) {
-          if (!isRoundWatchScreen(context)) {
-            return LayoutBuilder(
-              builder: (context, constraints) => _buildMainScaffold(
-                  context, appState, page, watchMode: false),
-            );
-          }
+      // Round watch: lay *every* route (pages, dialogs, pushed editors, ...)
+      // out against the reference design viewport, then scale the rendered
+      // result back down and clip it to the round display. Doing this in the
+      // app builder instead of in `home:` is what keeps secondary screens
+      // (card settings, dump/NDEF editors, ...) at the same density as the
+      // rest of the watch UI.
+      builder: (context, child) {
+        if (child == null) {
+          return const SizedBox.shrink();
+        }
 
-          // Round watch: lay the existing phone UI out at the reference design
-          // size, then scale the rendered result back down and clip it to the
-          // round display so nothing spills into the bezel.
-          final real = MediaQuery.of(context).size;
-          final scale = watchScaleFactor(real);
-          final design = Size(real.width * scale, real.height * scale);
-          return ClipOval(
-            child: MediaQuery(
-              data: MediaQuery.of(context).copyWith(size: design),
-              child: Center(
-                child: FittedBox(
-                  fit: BoxFit.contain,
-                  child: SizedBox(
-                    width: design.width,
-                    height: design.height,
-                    child: LayoutBuilder(
-                      builder: (context, constraints) => _buildMainScaffold(
-                          context, appState, page, watchMode: true),
+        if (!isRoundWatchScreen(context)) {
+          return child;
+        }
+
+        return WatchViewport(
+          overlay: ValueListenableBuilder<bool>(
+            valueListenable: _watchRouteObserver.canPop,
+            builder: (context, canPop, _) => canPop
+                ? Align(
+                    alignment: Alignment.centerLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 10),
+                      child: WatchBackButton(
+                        onPressed: () => _navigatorKey.currentState?.maybePop(),
+                      ),
                     ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
+                  )
+                : const SizedBox.shrink(),
+          ),
+          child: child,
+        );
+      },
+      home: Builder(
+        builder: (context) => _buildMainScaffold(
+          context,
+          appState,
+          page,
+          watchMode: isRoundWatchScreen(context),
+        ),
       ),
     );
   }
@@ -525,6 +545,19 @@ class _MainPageState extends State<MainPage> {
                   },
                 ),
               ),
+            // DFU progress. The bottom edge of the square viewport is outside
+            // the round bezel, so the bar is lifted into the visible part of
+            // the display, just above the round menu button.
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 76),
+                child: const SizedBox(
+                  width: 150,
+                  child: BottomProgressBar(),
+                ),
+              ),
+            ),
             Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
@@ -538,13 +571,18 @@ class _MainPageState extends State<MainPage> {
             ),
           ],
         ),
-        bottomNavigationBar: const BottomProgressBar(),
       ),
     );
   }
 
-  /// Applies watch-friendly tweaks to the theme: a more compact app bar and
-  /// round dialog corners so overlays look native on the round display.
+  /// Applies watch-friendly tweaks to the theme.
+  ///
+  /// Beyond a more compact app bar this is mostly about the round bezel: the
+  /// corners of the square viewport do not exist on the display (and, because
+  /// of the circular clip, are not tappable either). Dialogs and snack bars are
+  /// therefore inset far enough - see [kWatchRoundInset] - to stay completely
+  /// inside the circle, which is what makes the buttons of the secondary
+  /// editing dialogs reachable on a watch.
   ThemeData _applyWatchTheme(ThemeData theme) {
     return theme.copyWith(
       appBarTheme: theme.appBarTheme.copyWith(
@@ -553,7 +591,24 @@ class _MainPageState extends State<MainPage> {
       ),
       dialogTheme: theme.dialogTheme.copyWith(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(36),
+          borderRadius: BorderRadius.circular(28),
+        ),
+        insetPadding: const EdgeInsets.symmetric(
+          horizontal: kWatchRoundInset,
+          vertical: kWatchRoundInset,
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      ),
+      snackBarTheme: theme.snackBarTheme.copyWith(
+        behavior: SnackBarBehavior.floating,
+        insetPadding: const EdgeInsets.fromLTRB(
+          kWatchRoundInset,
+          0,
+          kWatchRoundInset,
+          88,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
         ),
       ),
     );

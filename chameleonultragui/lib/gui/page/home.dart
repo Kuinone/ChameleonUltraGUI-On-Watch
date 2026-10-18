@@ -4,6 +4,7 @@ import 'package:chameleonultragui/helpers/definitions.dart';
 import 'package:chameleonultragui/helpers/flash.dart';
 import 'package:chameleonultragui/helpers/general.dart';
 import 'package:chameleonultragui/helpers/github.dart';
+import 'package:chameleonultragui/helpers/watch.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:chameleonultragui/connector/serial_abstract.dart';
@@ -237,6 +238,47 @@ class HomePageState extends State<HomePage> {
               areCapabilitiesSupported,
             ) = snapshot.data;
 
+            // Round watch: the corners of the square viewport are outside the
+            // circular display (and clipped from hit testing), so nothing
+            // interactive may be pinned to a corner there - it has to be
+            // centred instead.
+            final watch = isRoundWatchScreen(context);
+
+            // The firmware banners span the whole width on a phone; on a watch
+            // they have to stay inside the round bezel as well.
+            final bannerConstraints = watch
+                ? const BoxConstraints(maxWidth: 320)
+                : const BoxConstraints();
+
+            final readerModeButton = Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: IconButton(
+                onPressed: () async {
+                  await appState.communicator!
+                      .setReaderDeviceMode(!isReaderDeviceMode);
+                  setState(() {});
+                  appState.changesMade();
+                },
+                tooltip: isReaderDeviceMode
+                    ? localizations.emulator_mode
+                    : localizations.reader_mode,
+                icon: Icon(isReaderDeviceMode
+                    ? Icons.nfc_sharp
+                    : Icons.barcode_reader),
+              ),
+            );
+
+            final chameleonSettingsButton = Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: IconButton(
+                onPressed: () => showDialog<String>(
+                    context: context,
+                    builder: (BuildContext dialogContext) =>
+                        const ChameleonSettings()),
+                icon: const Icon(Icons.settings),
+              ),
+            );
+
             return Scaffold(
               appBar: AppBar(
                 title: Text(localizations.home),
@@ -245,57 +287,98 @@ class HomePageState extends State<HomePage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Align(
-                      alignment: Alignment.topRight,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                IconButton(
-                                  onPressed: () async {
-                                    // Disconnect
-                                    await appState.disconnect(manual: true);
-                                  },
-                                  icon: const Icon(Icons.close),
+                    if (watch)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 250),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Flexible(
+                                child: FittedBox(
+                                  alignment: Alignment.centerRight,
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      appState.connector!.portName,
+                                      style: const TextStyle(fontSize: 20)),
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                Expanded(
-                                    flex: 1,
-                                    child: FittedBox(
-                                        alignment: Alignment.centerRight,
-                                        fit: BoxFit.scaleDown,
-                                        child: Row(children: [
-                                          Text(
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              appState.connector!.portName,
-                                              style:
-                                                  const TextStyle(fontSize: 20))
-                                        ]))),
-                                Icon(appState.connector!.connectionType ==
-                                        ConnectionType.ble
-                                    ? Icons.bluetooth
-                                    : Icons.usb),
-                                Tooltip(
-                                  message: localizations.battery_info(
-                                      batteryInfo.$2.percent,
-                                      batteryInfo.$2.voltage),
-                                  child: batteryInfo.$1,
-                                ),
-                              ],
-                            ),
-                          ],
+                              ),
+                              Icon(appState.connector!.connectionType ==
+                                      ConnectionType.ble
+                                  ? Icons.bluetooth
+                                  : Icons.usb),
+                              Tooltip(
+                                message: localizations.battery_info(
+                                    batteryInfo.$2.percent,
+                                    batteryInfo.$2.voltage),
+                                child: batteryInfo.$1,
+                              ),
+                              IconButton(
+                                onPressed: () async {
+                                  // Disconnect
+                                  await appState.disconnect(manual: true);
+                                },
+                                icon: const Icon(Icons.close),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  IconButton(
+                                    onPressed: () async {
+                                      // Disconnect
+                                      await appState.disconnect(manual: true);
+                                    },
+                                    icon: const Icon(Icons.close),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  Expanded(
+                                      flex: 1,
+                                      child: FittedBox(
+                                          alignment: Alignment.centerRight,
+                                          fit: BoxFit.scaleDown,
+                                          child: Row(children: [
+                                            Text(
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                appState.connector!.portName,
+                                                style: const TextStyle(
+                                                    fontSize: 20))
+                                          ]))),
+                                  Icon(appState.connector!.connectionType ==
+                                          ConnectionType.ble
+                                      ? Icons.bluetooth
+                                      : Icons.usb),
+                                  Tooltip(
+                                    message: localizations.battery_info(
+                                        batteryInfo.$2.percent,
+                                        batteryInfo.$2.voltage),
+                                    child: batteryInfo.$1,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -449,131 +532,120 @@ class HomePageState extends State<HomePage> {
                         ],
                       ),
                     if (appState.connector!.portName == "Demo")
-                      Container(
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: appState.sharedPreferencesProvider
-                              .getThemeComplementaryColor(),
-                          borderRadius:
-                              const BorderRadius.all(Radius.circular(8.0)),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                            ),
-                            const SizedBox(width: 16.0),
-                            Expanded(
-                              child: Text(
-                                localizations.demo_firmware,
-                                style: const TextStyle(
-                                  fontSize: 16.0,
+                      ConstrainedBox(
+                        constraints: bannerConstraints,
+                        child: Container(
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: appState.sharedPreferencesProvider
+                                .getThemeComplementaryColor(),
+                            borderRadius:
+                                const BorderRadius.all(Radius.circular(8.0)),
+                          ),
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                              ),
+                              const SizedBox(width: 16.0),
+                              Expanded(
+                                child: Text(
+                                  localizations.demo_firmware,
+                                  style: const TextStyle(
+                                    fontSize: 16.0,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     if (!areCapabilitiesSupported &&
                         appState.connector!.portName != "Demo")
-                      Container(
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: appState.sharedPreferencesProvider
-                              .getThemeComplementaryColor(),
-                          borderRadius:
-                              const BorderRadius.all(Radius.circular(8.0)),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                            ),
-                            const SizedBox(width: 16.0),
-                            Expanded(
-                              child: Text(
-                                localizations.please_update_firmware,
-                                style: const TextStyle(
-                                  fontSize: 16.0,
+                      ConstrainedBox(
+                        constraints: bannerConstraints,
+                        child: Container(
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: appState.sharedPreferencesProvider
+                                .getThemeComplementaryColor(),
+                            borderRadius:
+                                const BorderRadius.all(Radius.circular(8.0)),
+                          ),
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                              ),
+                              const SizedBox(width: 16.0),
+                              Expanded(
+                                child: Text(
+                                  localizations.please_update_firmware,
+                                  style: const TextStyle(
+                                    fontSize: 16.0,
+                                  ),
                                 ),
                               ),
-                            ),
-                            TextButton(
-                              onPressed: () async {
-                                var localizations =
-                                    AppLocalizations.of(context)!;
-                                var scaffoldMessenger =
-                                    ScaffoldMessenger.of(context);
-                                var snackBar = SnackBar(
-                                  content: Text(localizations.downloading_fw(
-                                      chameleonDeviceName(
-                                          appState.connector!.device))),
-                                  action: SnackBarAction(
-                                    label: localizations.close,
-                                    onPressed: () {
-                                      scaffoldMessenger.hideCurrentSnackBar();
-                                    },
-                                  ),
-                                );
+                              TextButton(
+                                onPressed: () async {
+                                  var localizations =
+                                      AppLocalizations.of(context)!;
+                                  var scaffoldMessenger =
+                                      ScaffoldMessenger.of(context);
+                                  var snackBar = SnackBar(
+                                    content:
+                                        Text(localizations.downloading_fw(
+                                            chameleonDeviceName(
+                                                appState.connector!.device))),
+                                    action: SnackBarAction(
+                                      label: localizations.close,
+                                      onPressed: () {
+                                        scaffoldMessenger
+                                            .hideCurrentSnackBar();
+                                      },
+                                    ),
+                                  );
 
-                                scaffoldMessenger.showSnackBar(snackBar);
-                                await flashFirmware(appState,
-                                    scaffoldMessenger: scaffoldMessenger);
-                              },
-                              child: Text(localizations.update),
-                            ),
+                                  scaffoldMessenger.showSnackBar(snackBar);
+                                  await flashFirmware(appState,
+                                      scaffoldMessenger: scaffoldMessenger);
+                                },
+                                child: Text(localizations.update),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    if (watch)
+                      Padding(
+                        // Kept clear of the round menu button at the bottom of
+                        // the circular display.
+                        padding: const EdgeInsets.only(top: 8, bottom: 64),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            readerModeButton,
+                            chameleonSettingsButton,
+                          ],
+                        ),
+                      )
+                    else
+                      Align(
+                        alignment: Alignment.bottomRight,
+                        child: Row(
+                          children: [
+                            const Spacer(),
+                            readerModeButton,
+                            chameleonSettingsButton,
                           ],
                         ),
                       ),
-                    Align(
-                      alignment: Alignment.bottomRight,
-                      child: Row(
-                        children: [
-                          const Spacer(),
-                          (isReaderDeviceMode)
-                              ? Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: IconButton(
-                                    onPressed: () async {
-                                      await appState.communicator!
-                                          .setReaderDeviceMode(false);
-                                      setState(() {});
-                                      appState.changesMade();
-                                    },
-                                    tooltip: localizations.emulator_mode,
-                                    icon: const Icon(Icons.nfc_sharp),
-                                  ),
-                                )
-                              : Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: IconButton(
-                                    onPressed: () async {
-                                      await appState.communicator!
-                                          .setReaderDeviceMode(true);
-                                      setState(() {});
-                                      appState.changesMade();
-                                    },
-                                    tooltip: localizations.reader_mode,
-                                    icon: const Icon(Icons.barcode_reader),
-                                  ),
-                                ),
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: IconButton(
-                              onPressed: () => showDialog<String>(
-                                  context: context,
-                                  builder: (BuildContext dialogContext) =>
-                                      const ChameleonSettings()),
-                              icon: const Icon(Icons.settings),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
               ),

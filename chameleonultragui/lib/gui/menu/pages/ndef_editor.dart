@@ -1,5 +1,6 @@
 import 'package:chameleonultragui/generated/i18n/app_localizations.dart';
 import 'package:chameleonultragui/helpers/ndef.dart';
+import 'package:chameleonultragui/helpers/watch.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -333,7 +334,8 @@ class _NdefEditorPageState extends State<NdefEditorPage> {
         if (!didPop && hasUnsavedChanges) _confirmDiscard();
       },
       child: Scaffold(
-        appBar: AppBar(
+        appBar: buildWatchAwareAppBar(
+          context,
           title: const Text('NDEF Editor'),
           actions: [
             IconButton(
@@ -348,6 +350,11 @@ class _NdefEditorPageState extends State<NdefEditorPage> {
           icon: const Icon(Icons.add),
           label: const Text('Add record'),
         ),
+        // The bottom-right corner is outside the round bezel, so on a watch the
+        // FAB is centred instead.
+        floatingActionButtonLocation: isRoundWatchScreen(context)
+            ? FloatingActionButtonLocation.centerFloat
+            : null,
         body: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
           children: [

@@ -53,11 +53,13 @@ class WatchNavigationMenu extends StatelessWidget {
     return Material(
       color: scheme.surface,
       child: SafeArea(
+        // The grid is inset so that every entry stays inside the round bezel,
+        // and padded at the bottom so it never hides behind the menu button.
         child: GridView.count(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 90),
+          padding: const EdgeInsets.fromLTRB(64, 48, 64, 92),
           crossAxisCount: 3,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
           childAspectRatio: 1.05,
           children: destinations.map((d) {
             final selected = d.index == selectedIndex;
@@ -70,7 +72,7 @@ class WatchNavigationMenu extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   CircleAvatar(
-                    radius: 30,
+                    radius: 26,
                     backgroundColor: selected
                         ? scheme.primary
                         : d.disabled
@@ -78,7 +80,7 @@ class WatchNavigationMenu extends StatelessWidget {
                             : scheme.primaryContainer,
                     child: Icon(
                       d.icon,
-                      size: 26,
+                      size: 24,
                       color: selected
                           ? scheme.onPrimary
                           : d.disabled
@@ -86,14 +88,14 @@ class WatchNavigationMenu extends StatelessWidget {
                               : scheme.onSurface,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Text(
                     d.label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 11,
                       color: d.disabled ? scheme.outline : scheme.onSurface,
                     ),
                   ),
